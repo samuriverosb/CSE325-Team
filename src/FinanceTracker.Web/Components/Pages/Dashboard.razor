@@ -1,0 +1,75 @@
+@page "/dashboard"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IDashboardService DashboardService
+
+<PageTitle>Dashboard</PageTitle>
+
+<h1>Dashboard</h1>
+<p class="text-muted">Monthly overview of your income, expenses, and active goals.</p>
+
+@if (summary is null)
+{
+    <p>Loading dashboard...</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h6 text-muted">Income This Month</h2>
+                    <p class="h4 mb-0">$@summary.MonthlyIncome.ToString("N2")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h6 text-muted">Expenses This Month</h2>
+                    <p class="h4 mb-0">$@summary.MonthlyExpenses.ToString("N2")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h6 text-muted">Remaining Budget</h2>
+                    <p class="h4 mb-0">$@summary.RemainingBudget.ToString("N2")</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h6 text-muted">Active Savings Goals</h2>
+                    <p class="h4 mb-0">@summary.ActiveSavingsGoals</p>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private DashboardSummary? summary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            return;
+        }
+
+        summary = await DashboardService.GetCurrentMonthSummaryAsync(user.Id);
+    }
+}

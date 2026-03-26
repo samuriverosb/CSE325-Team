@@ -1,0 +1,63 @@
+@page "/categories"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject ICategoryService CategoryService
+
+<PageTitle>Categories</PageTitle>
+
+<h1>Budget Categories</h1>
+<p class="text-muted">Week 04 scaffold: list structure is ready, full CRUD forms are next.</p>
+
+@if (categories is null)
+{
+    <p>Loading categories...</p>
+}
+else if (categories.Count == 0)
+{
+    <p>No categories found yet.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Monthly Limit</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var category in categories)
+            {
+                <tr>
+                    <td>@category.Name</td>
+                    <td>$@category.MonthlyLimit.ToString("N2")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyList<Category>? categories;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            categories = [];
+            return;
+        }
+
+        categories = await CategoryService.GetForUserAsync(user.Id);
+    }
+}

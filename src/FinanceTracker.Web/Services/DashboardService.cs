@@ -11,7 +11,7 @@ public class DashboardService(ApplicationDbContext dbContext) : IDashboardServic
     {
         try
         {
-            var start = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
+            var start = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
             var end = start.AddMonths(1);
 
             var monthTransactions = dbContext.Transactions
@@ -41,5 +41,35 @@ public class DashboardService(ApplicationDbContext dbContext) : IDashboardServic
         {
             return new DashboardSummary();
         }
+    }
+
+    public async Task<IReadOnlyList<CategoryBudgetSummary>> GetCategoryBudgetsAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var start = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+        var end = start.AddMonths(1);
+
+        var categories = await dbContext.Categories
+            .Where(c => c.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        var transactions = await dbContext.Transactions
+            .Where(t => t.UserId == userId && t.Date >= start && t.Date < end && t.Type == TransactionType.Expense)
+            .ToListAsync(cancellationToken);
+
+        var result = categories.Select(c =>
+        {
+            var spent = transactions
+                .Where(t => t.CategoryId == c.Id)
+                .Sum(t => t.Amount);
+
+            return new CategoryBudgetSummary
+            {
+                CategoryName = c.Name,
+                Limit = c.MonthlyLimit,
+                Spent = spent
+            };
+        }).ToList();
+
+        return result;
     }
 }

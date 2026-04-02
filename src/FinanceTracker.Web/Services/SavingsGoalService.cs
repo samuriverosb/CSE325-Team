@@ -22,4 +22,32 @@ public class SavingsGoalService(ApplicationDbContext dbContext) : ISavingsGoalSe
             return [];
         }
     }
+
+    public async Task CreateAsync(SavingsGoal goal, CancellationToken cancellationToken = default)
+    {
+        dbContext.SavingsGoals.Add(goal);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(SavingsGoal goal, CancellationToken cancellationToken = default)
+    {
+        var existing = await dbContext.SavingsGoals.FindAsync([goal.Id], cancellationToken);
+        if (existing is null) return;
+
+        existing.GoalName = goal.GoalName;
+        existing.TargetAmount = goal.TargetAmount;
+        existing.CurrentAmount = goal.CurrentAmount;
+        existing.Deadline = goal.Deadline;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var goal = await dbContext.SavingsGoals.FindAsync([id], cancellationToken);
+        if (goal is null) return;
+
+        dbContext.SavingsGoals.Remove(goal);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

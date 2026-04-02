@@ -7,13 +7,12 @@ public class Transaction
 {
     public int Id { get; set; }
 
-    [Required]
     public string UserId { get; set; } = string.Empty;
 
-    [Required]
+    [Range(1, int.MaxValue, ErrorMessage = "Category is required")]
     public int CategoryId { get; set; }
 
-    [Range(typeof(decimal), "0.01", "1000000")]
+    [Range(0.01, 1000000000)]
     public decimal Amount { get; set; }
 
     [Required]

@@ -14,7 +14,6 @@ public class Category
     [Range(0, 1_000_000)]
     public decimal MonthlyLimit { get; set; }
 
-    [Required]
     public string UserId { get; set; } = string.Empty;
 
     public ApplicationUser? User { get; set; }

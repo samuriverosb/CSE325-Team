@@ -13,40 +13,141 @@
 
 <PageTitle>Categories</PageTitle>
 
-<h1>Budget Categories</h1>
-<p class="text-muted">Week 04 scaffold: list structure is ready, full CRUD forms are next.</p>
+<main class="container py-4">
 
-@if (categories is null)
-{
-    <p>Loading categories...</p>
-}
-else if (categories.Count == 0)
-{
-    <p>No categories found yet.</p>
-}
-else
-{
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Monthly Limit</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var category in categories)
-            {
-                <tr>
-                    <td>@category.Name</td>
-                    <td>$@category.MonthlyLimit.ToString("N2")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Categories</h1>
+        <p class="text-muted">Manage your income and expense categories.</p>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Add Category</h5>
+
+            <EditForm Model="newCategory" OnValidSubmit="AddCategory" FormName="AddCategoryForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger mb-3" />
+
+                <div class="mb-3">
+                    <label for="catName" class="form-label">Category Name *</label>
+                    <InputText id="catName" @bind-Value="newCategory.Name" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="monthlyLimit" class="form-label">Monthly Limit</label>
+                    <InputNumber id="monthlyLimit" @bind-Value="newCategory.MonthlyLimit" class="form-control" />
+                    <div class="form-text">Optional spending limit for this category.</div>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary" aria-label="Add Category">Add Category</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (categories is null)
+    {
+        <p>Loading categories...</p>
+    }
+    else if (categories.Count == 0)
+    {
+        <p>No categories found yet.</p>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Monthly Limit</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var category in categories)
+                        {
+                            <tr>
+                                @if (editingCategoryId == category.Id)
+                                {
+                                    <td>
+                                        <InputText @bind-Value="editCategory.Name" class="form-control" />
+                                    </td>
+            
+                                    <td>
+                                        <InputNumber @bind-Value="editCategory.MonthlyLimit" class="form-control" />
+                                    </td>
+            
+                                    <td>
+                                        <button type="submit" class="btn btn-success btn-sm me-2" @onclick="SaveEdit"
+                                                aria-label="Save edit">Save</button>
+                                        <button type="button" class="btn btn-secondary btn-sm" @onclick="CancelEdit"
+                                                aria-label="Cancel edit">Cancel</button>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@category.Name</td>
+                                    <td>$@category.MonthlyLimit.ToString("N2")</td>
+            
+                                    <td>
+                                        <button type="button" class="btn btn-primary btn-sm me-2" @onclick="() => StartEdit(category)"
+                                                aria-label="Edit category">
+                                            Edit
+                                        </button>
+            
+                                        <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteCategory(category.Id)"
+                                                aria-label="Delete category">
+                                            Delete
+                                        </button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</main>
 
 @code {
     private IReadOnlyList<Category>? categories;
+
+    private Category newCategory = new();
+
+    private int? editingCategoryId = null;
+    private Category editCategory = new();
+
+    private async Task AddCategory()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        newCategory.UserId = user.Id;
+
+        await CategoryService.CreateAsync(newCategory);
+
+        categories = await CategoryService.GetForUserAsync(user.Id);
+
+        newCategory = new Category();
+    }
+
+    private async Task DeleteCategory(int id)
+    {
+        await CategoryService.DeleteAsync(id);
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        categories = await CategoryService.GetForUserAsync(user.Id);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -59,5 +160,37 @@ else
         }
 
         categories = await CategoryService.GetForUserAsync(user.Id);
+    }
+
+    private void StartEdit(Category category)
+    {
+        editingCategoryId = category.Id;
+
+        editCategory = new Category
+        {
+            Id = category.Id,
+            Name = category.Name,
+            MonthlyLimit = category.MonthlyLimit,
+            UserId = category.UserId
+        };
+    }
+
+    private async Task SaveEdit()
+    {
+        await CategoryService.UpdateAsync(editCategory);
+
+        editingCategoryId = null;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        categories = await CategoryService.GetForUserAsync(user.Id);
+    }
+
+    private void CancelEdit()
+    {
+        editingCategoryId = null;
     }
 }

@@ -24,19 +24,21 @@
         <div class="card-body">
             <h5 class="card-title">Add Category</h5>
 
-            <EditForm Model="newCategory" OnValidSubmit="AddCategory" FormName="AddCategoryForm">
+            <EditForm Model="newCategory" OnValidSubmit="AddCategory" FormName="AddCategoryForm" method="post">
                 <DataAnnotationsValidator />
-                <ValidationSummary class="text-danger mb-3" />
+                <ValidationSummary class="text-danger mb-3" role="alert" />
 
                 <div class="mb-3">
                     <label for="catName" class="form-label">Category Name *</label>
                     <InputText id="catName" @bind-Value="newCategory.Name" class="form-control" />
+                    <ValidationMessage For="() => newCategory.Name" class="text-danger" />
                 </div>
 
                 <div class="mb-3">
                     <label for="monthlyLimit" class="form-label">Monthly Limit</label>
                     <InputNumber id="monthlyLimit" @bind-Value="newCategory.MonthlyLimit" class="form-control" />
                     <div class="form-text">Optional spending limit for this category.</div>
+                    <ValidationMessage For="() => newCategory.MonthlyLimit" class="text-danger" />
                 </div>
 
                 <div class="d-flex justify-content-end">
@@ -48,17 +50,18 @@
 
     @if (categories is null)
     {
-        <p>Loading categories...</p>
+        <p role="status">Loading categories...</p>
     }
     else if (categories.Count == 0)
     {
-        <p>No categories found yet.</p>
+        <p role="status">No categories found yet.</p>
     }
     else
     {
         <div class="card">
             <div class="card-body">
                 <table class="table table-striped table-hover align-middle">
+                    <caption class="visually-hidden">Budget categories with monthly limits and management actions.</caption>
                     <thead>
                         <tr>
                             <th scope="col">Name</th>
@@ -81,7 +84,7 @@
                                     </td>
             
                                     <td>
-                                        <button type="submit" class="btn btn-success btn-sm me-2" @onclick="SaveEdit"
+                                        <button type="button" class="btn btn-success btn-sm me-2" @onclick="SaveEdit"
                                                 aria-label="Save edit">Save</button>
                                         <button type="button" class="btn btn-secondary btn-sm" @onclick="CancelEdit"
                                                 aria-label="Cancel edit">Cancel</button>

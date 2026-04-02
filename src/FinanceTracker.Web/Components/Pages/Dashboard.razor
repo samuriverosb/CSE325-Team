@@ -32,7 +32,7 @@
 
     @if (summary is null)
     {
-        <p>Loading dashboard...</p>
+        <p role="status">Loading dashboard...</p>
     }
     else
     {
@@ -83,11 +83,11 @@
 
     @if (categoryBudgets is null)
     {
-        <p>Loading budgets...</p>
+        <p role="status">Loading budgets...</p>
     }
     else if (categoryBudgets.Count == 0)
     {
-        <p>No categories found.</p>
+        <p role="status">No categories found.</p>
     }
     else
     {
@@ -128,11 +128,11 @@
 
     @if (recentTransactions is null)
     {
-        <p>Loading recent transactions...</p>
+        <p role="status">Loading recent transactions...</p>
     }
     else if (recentTransactions.Count == 0)
     {
-        <p>No recent transactions.</p>
+        <p role="status">No recent transactions.</p>
     }
     else
     {
@@ -146,7 +146,7 @@
                         {
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <div>
-                                    <strong>@t.Description</strong><br />
+                                    <strong>@(string.IsNullOrWhiteSpace(t.Description) ? "No description" : t.Description)</strong><br />
                                     <small>@t.Date.ToString("yyyy-MM-dd") - @t.Category?.Name</small>
                                 </div>
 

@@ -3,10 +3,13 @@ obj/
 .vs/
 .vscode/
 .idea/
+W05_CANVAS_UPDATE_DRAFT.md
+CHANGE_REPORT_FOR_SAMUEL.md
 
 # Local .NET CLI home used in this repository
 .dotnet/
 
 # SQLite artifacts
+*.db
 *.db-shm
 *.db-wal

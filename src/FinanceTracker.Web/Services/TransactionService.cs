@@ -25,4 +25,33 @@ public class TransactionService(ApplicationDbContext dbContext) : ITransactionSe
             return [];
         }
     }
+
+    public async Task CreateAsync(Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        dbContext.Transactions.Add(transaction);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var transaction = await dbContext.Transactions.FindAsync([id], cancellationToken);
+        if (transaction is null) return;
+
+        dbContext.Transactions.Remove(transaction);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateAsync(Transaction transaction, CancellationToken cancellationToken = default)
+    {
+        var existing = await dbContext.Transactions.FindAsync([transaction.Id], cancellationToken);
+        if (existing is null) return;
+
+        existing.Amount = transaction.Amount;
+        existing.Type = transaction.Type;
+        existing.CategoryId = transaction.CategoryId;
+        existing.Date = transaction.Date;
+        existing.Description = transaction.Description;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

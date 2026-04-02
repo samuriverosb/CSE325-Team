@@ -1,0 +1,184 @@
+@page "/dashboard"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IDashboardService DashboardService
+@inject ITransactionService TransactionService
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard</PageTitle>
+
+<main class="container py-4">
+
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Dashboard</h1>
+        <p class="text-muted">Monthly overview of your income, expenses, and active goals.</p>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <button class="btn btn-success" @onclick="@(() => Nav.NavigateTo("/transactions"))">
+                + Add Transaction
+            </button>
+        </div>
+    </div>
+
+    @if (summary is null)
+    {
+        <p>Loading dashboard...</p>
+    }
+    else
+    {
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Income This Month</h2>
+                        <p class="h4 mb-0 text-success">$@summary.MonthlyIncome.ToString("N2")</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Expenses This Month</h2>
+                        <p class="h4 mb-0 text-danger">$@summary.MonthlyExpenses.ToString("N2")</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Remaining Budget</h2>
+                        <p class="h4 mb-0 @(summary.RemainingBudget >= 0 ? "text-success" : "text-danger")">
+                            $@summary.RemainingBudget.ToString("N2")
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-12">
+                <div class="card h-100">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="h6 text-muted mb-1">Active Savings Goals</h2>
+                            <p class="h4 mb-0">@summary.ActiveSavingsGoals</p>
+                        </div>
+
+                        <button class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/savings-goals"))">
+                            + Add Goal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    @if (categoryBudgets is null)
+    {
+        <p>Loading budgets...</p>
+    }
+    else if (categoryBudgets.Count == 0)
+    {
+        <p>No categories found.</p>
+    }
+    else
+    {
+        <div class="mt-4">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">Category Budgets</h3>
+                    @foreach (var c in categoryBudgets)
+                    {
+                        <div class="mb-3">
+                            <strong>@c.CategoryName</strong>
+                            <div class="d-flex justify-content-between">
+                                <small>$@c.Spent.ToString("N2") / $@c.Limit.ToString("N2")</small>
+                                <small>@c.Percentage.ToString("N1")%</small>
+                            </div>
+
+                            <div class="progress">
+                                <div class="progress-bar @(c.Percentage switch {
+                                        >= 100 => "bg-danger",
+                                        >= 75 => "bg-warning",
+                                        _ => "bg-success"
+                                    })"
+                                        role="progressbar"
+                                        aria-valuenow="@c.Percentage"
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                        style="width: @(c.Percentage.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%")">
+                                    @c.Percentage.ToString("N0")%
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+
+    @if (recentTransactions is null)
+    {
+        <p>Loading recent transactions...</p>
+    }
+    else if (recentTransactions.Count == 0)
+    {
+        <p>No recent transactions.</p>
+    }
+    else
+    {
+        <div class="mt-4">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">Recent Activity</h3>
+
+                     <ul class="list-group">
+                        @foreach (var t in recentTransactions)
+                        {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>@t.Description</strong><br />
+                                    <small>@t.Date.ToString("yyyy-MM-dd") - @t.Category?.Name</small>
+                                </div>
+
+                                <span class="@(t.Type == TransactionType.Income ? "text-success" : "text-danger")">
+                                    @(t.Type == TransactionType.Income ? "+" : "-")$@t.Amount.ToString("N2")
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </div>
+        </div>
+    }
+</main>
+
+@code {
+    private DashboardSummary? summary;
+    private IReadOnlyList<Transaction>? recentTransactions;
+    private IReadOnlyList<CategoryBudgetSummary>? categoryBudgets;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            return;
+        }
+
+        recentTransactions = await TransactionService.GetRecentForUserAsync(user.Id, 5);
+        categoryBudgets = await DashboardService.GetCategoryBudgetsAsync(user.Id);
+
+        summary = await DashboardService.GetCurrentMonthSummaryAsync(user.Id);
+    }
+}

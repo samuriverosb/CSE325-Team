@@ -1,0 +1,297 @@
+@page "/transactions"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject ITransactionService TransactionService
+@inject ICategoryService CategoryService
+@inject ISavingsGoalService SavingsGoalService
+
+<PageTitle>Transactions</PageTitle>
+
+<main class="container py-4">
+
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Transactions</h1>
+        <p class="text-muted">Manage your income and expenses.</p>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Add Transaction</h5>
+
+            <EditForm Model="newTransaction" OnValidSubmit="AddTransaction" FormName="AddTransactionForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger mb-3" />
+
+                <div class="mb-3">
+                    <label for="amount" class="form-label">Amount *</label>
+                    <InputNumber id="amount" @bind-Value="newTransaction.Amount" class="form-control" step="0.01" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="type" class="form-label">Type</label>
+                    <InputSelect id="type" @bind-Value="newTransaction.Type" class="form-control">
+                        <option value="Income">Income</option>
+                        <option value="Expense">Expense</option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label for="categoryId" class="form-label">Category</label>
+                    <InputSelect id="categoryId" @bind-Value="newTransaction.CategoryId" class="form-control">
+                        <option value="0" selected disabled>Select Category</option>
+                        @if (categories != null)
+                        {
+                            @foreach (var category in categories)
+                            {
+                                <option value="@category.Id">@category.Name</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label for="goalId" class="form-label">Apply to Goal (optional)</label>
+                    <InputSelect id="goalId" @bind-Value="selectedGoalId" class="form-control"
+                                 disabled="@(newTransaction.Type == TransactionType.Expense)">
+
+                        @if (goals != null)
+                        {
+                            @foreach (var goal in goals)
+                            {
+                                <option value="@goal.Id">@goal.GoalName</option>
+                            }
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label for="date" class="form-label">Date</label>
+                    <InputDate id="date" @bind-Value="newTransaction.Date" class="form-control" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="description" class="form-label">Description</label>
+                    <InputText id="description" @bind-Value="newTransaction.Description" class="form-control" />
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary" aria-label="Add Transaction">Add Transaction</button>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    @if (transactions is null)
+    {
+        <p>Loading transactions...</p>
+    }
+    else if (transactions.Count == 0)
+    {
+        <p>No transactions found yet.</p>
+    }
+    else
+    {
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Amount</th>
+                            <th scope="col">Description</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var transaction in transactions)
+                        {
+                            <tr>
+                                @if (editingTransactionId == transaction.Id)
+                                {
+                                    <td>
+                                        <InputDate @bind-Value="editTransaction.Date" class="form-control" />
+                                    </td>
+
+                                    <td>
+                                        <InputSelect @bind-Value="editTransaction.CategoryId" class="form-control">
+                                            @foreach (var category in categories)
+                                            {
+                                                <option value="@category.Id">@category.Name</option>
+                                            }
+                                        </InputSelect>
+                                    </td>
+
+                                    <td>
+                                        <InputSelect @bind-Value="editTransaction.Type" class="form-control">
+                                            <option value="Income">Income</option>
+                                            <option value="Expense">Expense</option>
+                                        </InputSelect>
+                                    </td>
+
+                                    <td>
+                                        <InputNumber @bind-Value="editTransaction.Amount" class="form-control" />
+                                    </td>
+
+                                    <td>
+                                        <InputText @bind-Value="editTransaction.Description" class="form-control" />
+                                    </td>
+
+                                    <td>
+                                        <button type="submit" class="btn btn-success btn-sm me-2" @onclick="SaveEdit" aria-label="Save edit">
+                                            Save
+                                        </button>
+
+                                        <button type="button" class="btn btn-secondary btn-sm" @onclick="CancelEdit" aria-label="Cancel edit">
+                                            Cancel
+                                        </button>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@transaction.Date.ToString("yyyy-MM-dd")</td>
+                                    <td>@transaction.Category?.Name</td>
+                                    <td>@transaction.Type</td>
+                                    <td>$@transaction.Amount.ToString("N2")</td>
+                                    <td>@transaction.Description</td>
+
+                                    <td>
+                                        <button type="button" class="btn btn-primary btn-sm me-2" @onclick="() => StartEdit(transaction)" aria-label="Edit transaction">
+                                            Edit
+                                        </button>
+
+                                        <button type="button" class="btn btn-danger btn-sm" @onclick="() => DeleteTransaction(transaction.Id)" aria-label="Delete transaction">
+                                            Delete
+                                        </button>
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+</main>
+
+@code {
+    private IReadOnlyList<Transaction>? transactions;
+    private IReadOnlyList<Category>? categories;
+    private IReadOnlyList<SavingsGoal>? goals;
+    private int selectedGoalId = 0;
+
+    private Transaction newTransaction = new()
+    {
+        Date = DateTime.UtcNow.Date,
+        CategoryId = 0
+    };
+
+    private int? editingTransactionId = null;
+    private Transaction editTransaction = new();
+
+    private async Task AddTransaction()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        newTransaction.UserId = user.Id;
+
+        await TransactionService.CreateAsync(newTransaction);
+
+        if (selectedGoalId > 0 && newTransaction.Type == TransactionType.Income)
+        {
+            var goals = await SavingsGoalService.GetForUserAsync(user.Id);
+            var goal = goals.FirstOrDefault(g => g.Id == selectedGoalId);
+
+            if (goal != null)
+            {
+                goal.CurrentAmount += newTransaction.Amount;
+                await SavingsGoalService.UpdateAsync(goal);
+            }
+        }
+
+        transactions = await TransactionService.GetRecentForUserAsync(user.Id);
+
+        newTransaction = new Transaction
+        {
+            Date = DateTime.Now.Date
+        };
+
+        selectedGoalId = 0;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null)
+        {
+            transactions = [];
+            categories = [];
+            return;
+        }
+
+        transactions = await TransactionService.GetRecentForUserAsync(user.Id);
+        categories = await CategoryService.GetForUserAsync(user.Id);
+        goals = await SavingsGoalService.GetForUserAsync(user.Id);
+    }
+
+    private async Task DeleteTransaction(int id)
+    {
+        await TransactionService.DeleteAsync(id);
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        transactions = await TransactionService.GetRecentForUserAsync(user.Id);
+    }
+
+    private void StartEdit(Transaction transaction)
+    {
+        editingTransactionId = transaction.Id;
+
+        editTransaction = new Transaction
+        {
+            Id = transaction.Id,
+            Amount = transaction.Amount,
+            Type = transaction.Type,
+            CategoryId = transaction.CategoryId,
+            Date = transaction.Date,
+            Description = transaction.Description,
+            UserId = transaction.UserId
+        };
+    }
+
+    private async Task SaveEdit()
+    {
+        await TransactionService.UpdateAsync(editTransaction);
+
+        editingTransactionId = null;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null) return;
+
+        transactions = await TransactionService.GetRecentForUserAsync(user.Id);
+    }
+
+    private void CancelEdit()
+    {
+        editingTransactionId = null;
+    }
+}

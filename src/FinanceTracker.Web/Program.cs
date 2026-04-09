@@ -1,4 +1,6 @@
+using System.IO;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SelfRelianceFinanceTracker.Web.Components;
@@ -22,6 +24,22 @@ builder.Services.AddAuthentication(options =>
         options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
     })
     .AddIdentityCookies();
+
+if (builder.Environment.IsDevelopment())
+{
+    // Keep local logging on providers that work without elevated Windows permissions.
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConsole();
+    builder.Logging.AddDebug();
+
+    // Keep development keys inside the project so local runs do not depend on a broken user-profile key ring.
+    var localKeysPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "keys");
+    Directory.CreateDirectory(localKeysPath);
+
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(localKeysPath))
+        .SetApplicationName("SelfRelianceFinanceTracker.Local");
+}
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

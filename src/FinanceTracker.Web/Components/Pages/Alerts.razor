@@ -10,24 +10,16 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject UserManager<ApplicationUser> UserManager
 @inject IAlertService AlertService
-@inject NavigationManager NavigationManager
 
 <PageTitle>Alerts</PageTitle>
 
 <main class="container py-4">
-
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-        <div>
-            <h1 class="h3 mb-1">Alerts</h1>
-            <p class="text-muted mb-0">Budget and savings reminders that help you react before problems grow.</p>
-        </div>
-
-        <button type="button" class="btn btn-outline-primary" @onclick="@(() => NavigationManager.NavigateTo("/reports"))">
-            Open Reports
-        </button>
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Budget Alerts</h1>
+        <p class="text-muted mb-0">Notifications for budgets, savings goals, and transaction activity that may need attention.</p>
     </div>
 
-    @if (alerts is null)
+    @if (isLoading)
     {
         <p role="status">Loading alerts...</p>
     }
@@ -38,73 +30,86 @@
                 <div class="card h-100">
                     <div class="card-body">
                         <h2 class="h6 text-muted">High Priority</h2>
-                        <p class="h4 mb-0 text-danger">@alerts.Count(alert => alert.Severity == AlertSeverity.Danger)</p>
+                        <p class="h4 mb-0 text-danger">@alerts.Count(item => item.Severity == AlertSeverity.High)</p>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h2 class="h6 text-muted">Warnings</h2>
-                        <p class="h4 mb-0 text-warning">@alerts.Count(alert => alert.Severity == AlertSeverity.Warning)</p>
+                        <h2 class="h6 text-muted">Needs Attention</h2>
+                        <p class="h4 mb-0 text-warning">@alerts.Count(item => item.Severity == AlertSeverity.Medium)</p>
                     </div>
                 </div>
             </div>
-
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h2 class="h6 text-muted">Info</h2>
-                        <p class="h4 mb-0 text-info">@alerts.Count(alert => alert.Severity == AlertSeverity.Info)</p>
+                        <h2 class="h6 text-muted">Informational</h2>
+                        <p class="h4 mb-0 text-primary">@alerts.Count(item => item.Severity == AlertSeverity.Info)</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="row g-3">
-            @foreach (var alert in alerts)
-            {
-                <div class="col-12">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body d-flex flex-column flex-lg-row justify-content-between gap-3">
+        @if (alerts.Count == 0)
+        {
+            <div class="alert alert-success mb-0" role="alert">
+                No alerts were generated. Current budgets and goals look healthy.
+            </div>
+        }
+        else
+        {
+            <div class="d-grid gap-3">
+                @foreach (var alert in alerts)
+                {
+                    <section class="alert @GetAlertClass(alert.Severity) mb-0" role="alert">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3">
                             <div>
-                                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                                    <span class="badge @alert.BadgeClass">@alert.Area</span>
-                                    <h2 class="h5 mb-0">@alert.Title</h2>
-                                </div>
-
-                                <p class="mb-1">@alert.Message</p>
-                                <small class="text-muted">Suggested action: @alert.SuggestedAction</small>
+                                <h2 class="h6 mb-1">@alert.Title</h2>
+                                <p class="mb-0">@alert.Message</p>
                             </div>
-
-                            <div class="d-flex align-items-start">
-                                <button type="button" class="btn btn-outline-secondary" @onclick="@(() => NavigationManager.NavigateTo(alert.SuggestedRoute))">
-                                    @alert.SuggestedAction
-                                </button>
-                            </div>
+                            @if (!string.IsNullOrWhiteSpace(alert.ActionHref) && !string.IsNullOrWhiteSpace(alert.ActionText))
+                            {
+                                <a class="btn btn-sm @GetButtonClass(alert.Severity)" href="@alert.ActionHref">@alert.ActionText</a>
+                            }
                         </div>
-                    </div>
-                </div>
-            }
-        </div>
+                    </section>
+                }
+            </div>
+        }
     }
 </main>
 
 @code {
-    private IReadOnlyList<AlertNotification>? alerts;
+    private bool isLoading = true;
+    private IReadOnlyList<AlertNotification> alerts = [];
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(authState.User);
-
         if (user is null)
         {
-            alerts = [];
+            isLoading = false;
             return;
         }
 
-        alerts = await AlertService.GetAlertsForUserAsync(user.Id);
+        alerts = await AlertService.GetAlertsAsync(user.Id);
+        isLoading = false;
     }
+
+    private static string GetAlertClass(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.High => "alert-danger",
+        AlertSeverity.Medium => "alert-warning",
+        _ => "alert-primary"
+    };
+
+    private static string GetButtonClass(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.High => "btn-outline-danger",
+        AlertSeverity.Medium => "btn-outline-warning",
+        _ => "btn-outline-primary"
+    };
 }

@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SelfRelianceFinanceTracker.Web.Data;
 using SelfRelianceFinanceTracker.Web.Models;
@@ -6,207 +7,248 @@ namespace SelfRelianceFinanceTracker.Web.Services;
 
 public class ReportService(ApplicationDbContext dbContext) : IReportService
 {
-    public async Task<MonthlyReport> GetCurrentMonthReportAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<MonthlyReport> GetMonthlyReportAsync(string userId, CancellationToken cancellationToken = default)
     {
         var periodStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         var periodEnd = periodStart.AddMonths(1);
 
-        var categories = await dbContext.Categories
-            .AsNoTracking()
-            .Where(category => category.UserId == userId)
-            .OrderBy(category => category.Name)
-            .ToListAsync(cancellationToken);
+        try
+        {
+            var monthTransactions = await dbContext.Transactions
+                .AsNoTracking()
+                .Include(t => t.Category)
+                .Where(t => t.UserId == userId && t.Date >= periodStart && t.Date < periodEnd)
+                .OrderByDescending(t => t.Date)
+                .ThenByDescending(t => t.Id)
+                .ToListAsync(cancellationToken);
 
-        var transactions = await dbContext.Transactions
-            .AsNoTracking()
-            .Include(transaction => transaction.Category)
-            .Where(transaction => transaction.UserId == userId && transaction.Date >= periodStart && transaction.Date < periodEnd)
-            .OrderByDescending(transaction => transaction.Date)
-            .ThenByDescending(transaction => transaction.Id)
-            .ToListAsync(cancellationToken);
+            var categories = await dbContext.Categories
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderBy(c => c.Name)
+                .ToListAsync(cancellationToken);
 
-        var goals = await dbContext.SavingsGoals
-            .AsNoTracking()
-            .Where(goal => goal.UserId == userId)
-            .OrderBy(goal => goal.Deadline)
-            .ThenBy(goal => goal.GoalName)
-            .ToListAsync(cancellationToken);
+            var goals = await dbContext.SavingsGoals
+                .AsNoTracking()
+                .Where(g => g.UserId == userId)
+                .OrderBy(g => g.Deadline)
+                .ThenBy(g => g.GoalName)
+                .ToListAsync(cancellationToken);
 
-        var totalIncome = transactions
-            .Where(transaction => transaction.Type == TransactionType.Income)
-            .Sum(transaction => transaction.Amount);
+            var monthlyIncome = monthTransactions
+                .Where(t => t.Type == TransactionType.Income)
+                .Sum(t => t.Amount);
 
-        var totalExpenses = transactions
-            .Where(transaction => transaction.Type == TransactionType.Expense)
-            .Sum(transaction => transaction.Amount);
+            var monthlyExpenses = monthTransactions
+                .Where(t => t.Type == TransactionType.Expense)
+                .Sum(t => t.Amount);
 
-        var expenseTransactions = transactions
-            .Where(transaction => transaction.Type == TransactionType.Expense)
-            .ToList();
+            var expenseTransactions = monthTransactions
+                .Where(t => t.Type == TransactionType.Expense)
+                .ToList();
 
-        // Keep the report anchored to the active month so its numbers match the dashboard.
-        var categoryBreakdown = categories
+            var categoryBreakdowns = BuildCategoryBreakdowns(categories, expenseTransactions, monthlyExpenses);
+            var goalProgressItems = goals
+                .Select(goal => new GoalProgressReportItem
+                {
+                    GoalName = goal.GoalName,
+                    CurrentAmount = goal.CurrentAmount,
+                    TargetAmount = goal.TargetAmount,
+                    Deadline = goal.Deadline.Date
+                })
+                .ToList();
+
+            return new MonthlyReport
+            {
+                PeriodLabel = periodStart.ToString("MMMM yyyy"),
+                MonthlyIncome = monthlyIncome,
+                MonthlyExpenses = monthlyExpenses,
+                CategoryBreakdowns = categoryBreakdowns,
+                GoalProgressItems = goalProgressItems,
+                RecentTransactions = monthTransactions.Take(10).ToList(),
+                SpendingInsights = BuildSpendingInsights(monthlyIncome, monthlyExpenses, categoryBreakdowns, goalProgressItems, monthTransactions.Count),
+                CashFlowPoints = await BuildCashFlowPointsAsync(userId, periodStart, cancellationToken),
+                CategorySharePoints = categoryBreakdowns
+                    .Where(item => item.Spent > 0)
+                    .OrderByDescending(item => item.Spent)
+                    .Take(5)
+                    .Select(item => new ReportChartPoint
+                    {
+                        Label = item.CategoryName,
+                        Value = item.Spent,
+                        Percentage = item.ShareOfExpenses
+                    })
+                    .ToList()
+            };
+        }
+        catch (SqliteException)
+        {
+            return new MonthlyReport
+            {
+                PeriodLabel = periodStart.ToString("MMMM yyyy")
+            };
+        }
+    }
+
+    private static IReadOnlyList<ReportCategoryBreakdown> BuildCategoryBreakdowns(
+        IReadOnlyList<Category> categories,
+        IReadOnlyList<Transaction> expenseTransactions,
+        decimal totalExpenses)
+    {
+        return categories
             .Select(category =>
             {
-                var spent = transactions
-                    .Where(transaction => transaction.Type == TransactionType.Expense && transaction.CategoryId == category.Id)
-                    .Sum(transaction => transaction.Amount);
+                var categoryTransactions = expenseTransactions
+                    .Where(transaction => transaction.CategoryId == category.Id)
+                    .ToList();
 
+                var spent = categoryTransactions.Sum(transaction => transaction.Amount);
                 return new ReportCategoryBreakdown
                 {
                     CategoryName = category.Name,
-                    Limit = category.MonthlyLimit,
+                    BudgetLimit = category.MonthlyLimit,
                     Spent = spent,
-                    ExpenseSharePercentage = totalExpenses <= 0m
-                        ? 0m
-                        : Math.Round((spent / totalExpenses) * 100m, 1)
+                    ShareOfExpenses = totalExpenses <= 0 ? 0 : Math.Round((spent / totalExpenses) * 100m, 1),
+                    TransactionCount = categoryTransactions.Count
                 };
             })
-            .OrderByDescending(category => category.Spent)
+            .OrderByDescending(item => item.Spent)
+            .ThenBy(item => item.CategoryName)
             .ToList();
+    }
 
-        var goalProgress = goals
-            .Select(goal => new GoalProgressReportItem
+    private async Task<IReadOnlyList<ReportChartPoint>> BuildCashFlowPointsAsync(
+        string userId,
+        DateTime currentMonthStart,
+        CancellationToken cancellationToken)
+    {
+        var chartStart = currentMonthStart.AddMonths(-5);
+        var chartEnd = currentMonthStart.AddMonths(1);
+
+        var chartTransactions = await dbContext.Transactions
+            .AsNoTracking()
+            .Where(t => t.UserId == userId && t.Date >= chartStart && t.Date < chartEnd)
+            .ToListAsync(cancellationToken);
+
+        var rawPoints = Enumerable.Range(0, 6)
+            .Select(offset =>
             {
-                GoalName = goal.GoalName,
-                CurrentAmount = goal.CurrentAmount,
-                TargetAmount = goal.TargetAmount,
-                Deadline = goal.Deadline
+                var monthStart = chartStart.AddMonths(offset);
+                var monthEnd = monthStart.AddMonths(1);
+                var monthTransactions = chartTransactions
+                    .Where(transaction => transaction.Date >= monthStart && transaction.Date < monthEnd)
+                    .ToList();
+
+                var income = monthTransactions
+                    .Where(transaction => transaction.Type == TransactionType.Income)
+                    .Sum(transaction => transaction.Amount);
+
+                var expenses = monthTransactions
+                    .Where(transaction => transaction.Type == TransactionType.Expense)
+                    .Sum(transaction => transaction.Amount);
+
+                return new ReportChartPoint
+                {
+                    Label = monthStart.ToString("MMM"),
+                    Value = income - expenses
+                };
             })
             .ToList();
 
-        // Convert the monthly numbers into short, human-readable observations the user can scan quickly.
-        var insights = BuildInsights(categoryBreakdown, expenseTransactions, totalIncome, totalExpenses, goalProgress);
+        // Normalize heights once so the Razor page only renders percentages.
+        var maxMagnitude = rawPoints
+            .Select(point => Math.Abs(point.Value))
+            .DefaultIfEmpty(0m)
+            .Max();
 
-        var cashFlowChart = BuildCashFlowChart(totalIncome, totalExpenses, totalIncome - totalExpenses);
-
-        return new MonthlyReport
-        {
-            PeriodLabel = periodStart.ToString("MMMM yyyy"),
-            TotalIncome = totalIncome,
-            TotalExpenses = totalExpenses,
-            TransactionCount = transactions.Count,
-            CategoryBreakdown = categoryBreakdown,
-            GoalProgress = goalProgress,
-            RecentTransactions = transactions.Take(8).ToList(),
-            Insights = insights,
-            CashFlowChart = cashFlowChart
-        };
+        return rawPoints
+            .Select(point => new ReportChartPoint
+            {
+                Label = point.Label,
+                Value = point.Value,
+                Percentage = maxMagnitude <= 0 ? 0 : Math.Round((Math.Abs(point.Value) / maxMagnitude) * 100m, 1)
+            })
+            .ToList();
     }
 
-    private static IReadOnlyList<SpendingInsight> BuildInsights(
-        IReadOnlyList<ReportCategoryBreakdown> categoryBreakdown,
-        IReadOnlyList<Transaction> expenseTransactions,
-        decimal totalIncome,
-        decimal totalExpenses,
-        IReadOnlyList<GoalProgressReportItem> goalProgress)
+    private static IReadOnlyList<SpendingInsight> BuildSpendingInsights(
+        decimal monthlyIncome,
+        decimal monthlyExpenses,
+        IReadOnlyList<ReportCategoryBreakdown> categoryBreakdowns,
+        IReadOnlyList<GoalProgressReportItem> goalProgressItems,
+        int transactionCount)
     {
         var insights = new List<SpendingInsight>();
 
-        var topCategory = categoryBreakdown.FirstOrDefault(category => category.Spent > 0m);
-        insights.Add(topCategory is null
-            ? new SpendingInsight
+        // Keep the insight copy readable and action-oriented for the checkpoint deliverable.
+        if (transactionCount == 0)
+        {
+            insights.Add(new SpendingInsight
             {
-                Title = "Top spending category",
-                Value = "No expenses yet",
-                Summary = "Once expense transactions are added, this insight will highlight where most of the money went.",
-                ToneClass = "text-bg-info"
-            }
-            : new SpendingInsight
-            {
-                Title = "Top spending category",
-                Value = topCategory.CategoryName,
-                Summary = $"{topCategory.CategoryName} absorbed ${topCategory.Spent:N2}, which is {topCategory.ExpenseSharePercentage:N0}% of this month's expenses.",
-                ToneClass = topCategory.Status == "Over budget" ? "text-bg-danger" : "text-bg-primary"
+                Title = "No spending data recorded yet",
+                Description = "Add a few transactions to unlock category trends, budget behavior, and cash flow patterns.",
+                Tone = "info"
             });
 
-        var largestExpense = expenseTransactions
-            .OrderByDescending(transaction => transaction.Amount)
-            .FirstOrDefault();
-
-        insights.Add(largestExpense is null
-            ? new SpendingInsight
-            {
-                Title = "Largest expense",
-                Value = "$0.00",
-                Summary = "No expense transactions have been recorded for this month.",
-                ToneClass = "text-bg-secondary"
-            }
-            : new SpendingInsight
-            {
-                Title = "Largest expense",
-                Value = $"${largestExpense.Amount:N2}",
-                Summary = $"The highest single expense was {(string.IsNullOrWhiteSpace(largestExpense.Description) ? "an uncategorized purchase" : largestExpense.Description)} on {largestExpense.Date:yyyy-MM-dd}.",
-                ToneClass = "text-bg-warning"
-            });
-
-        var averageExpense = expenseTransactions.Count == 0
-            ? 0m
-            : expenseTransactions.Average(transaction => transaction.Amount);
-
-        insights.Add(new SpendingInsight
-        {
-            Title = "Average expense",
-            Value = $"${averageExpense:N2}",
-            Summary = expenseTransactions.Count == 0
-                ? "Average expense will appear once there are outgoing transactions in the current month."
-                : $"Across {expenseTransactions.Count} expense transactions, the typical outgoing amount is ${averageExpense:N2}.",
-            ToneClass = "text-bg-info"
-        });
-
-        var pressuredCategories = categoryBreakdown.Count(category => category.Status is "Near limit" or "Over budget");
-        var activeGoals = goalProgress.Count(goal => goal.Status != "Completed");
-
-        insights.Add(new SpendingInsight
-        {
-            Title = "Pressure check",
-            Value = pressuredCategories == 0 ? "Stable" : pressuredCategories.ToString(),
-            Summary = pressuredCategories == 0
-                ? $"Spending is still within comfortable limits, and {activeGoals} savings goal(s) remain active."
-                : $"{pressuredCategories} category budget(s) need attention while {activeGoals} savings goal(s) are still in progress.",
-            ToneClass = pressuredCategories == 0 && totalIncome >= totalExpenses ? "text-bg-success" : "text-bg-danger"
-        });
-
-        return insights;
-    }
-
-    private static IReadOnlyList<ReportChartPoint> BuildCashFlowChart(decimal totalIncome, decimal totalExpenses, decimal netBalance)
-    {
-        var scaleBase = new[] { totalIncome, totalExpenses, Math.Abs(netBalance) }
-            .Max();
-
-        if (scaleBase <= 0m)
-        {
-            scaleBase = 1m;
+            return insights;
         }
 
-        // Use one shared scale so the bars tell a proportional story without a chart library.
-        return
-        [
-            new ReportChartPoint
+        if (monthlyIncome > 0 && monthlyExpenses > monthlyIncome)
+        {
+            insights.Add(new SpendingInsight
             {
-                Label = "Income",
-                Caption = "Money coming in",
-                Amount = totalIncome,
-                Percentage = Math.Round((totalIncome / scaleBase) * 100m, 1),
-                FillClass = "bg-success"
-            },
-            new ReportChartPoint
+                Title = "Expenses outpaced income this month",
+                Description = $"Expenses reached ${monthlyExpenses:N2} versus ${monthlyIncome:N2} in income, which puts the monthly balance under pressure.",
+                Tone = "warning"
+            });
+        }
+        else if (monthlyIncome > 0)
+        {
+            insights.Add(new SpendingInsight
             {
-                Label = "Expenses",
-                Caption = "Money going out",
-                Amount = totalExpenses,
-                Percentage = Math.Round((totalExpenses / scaleBase) * 100m, 1),
-                FillClass = "bg-danger"
-            },
-            new ReportChartPoint
+                Title = "Monthly cash flow is currently positive",
+                Description = $"Income is covering expenses with ${(monthlyIncome - monthlyExpenses):N2} left after this month's recorded activity.",
+                Tone = "success"
+            });
+        }
+
+        var largestCategory = categoryBreakdowns.FirstOrDefault(item => item.Spent > 0);
+        if (largestCategory is not null)
+        {
+            insights.Add(new SpendingInsight
             {
-                Label = "Net balance",
-                Caption = netBalance >= 0m ? "What remains after spending" : "Current deficit",
-                Amount = Math.Abs(netBalance),
-                Percentage = Math.Round((Math.Abs(netBalance) / scaleBase) * 100m, 1),
-                FillClass = netBalance >= 0m ? "bg-primary" : "bg-warning"
-            }
-        ];
+                Title = $"{largestCategory.CategoryName} is the largest expense category",
+                Description = $"It accounts for {largestCategory.ShareOfExpenses:N1}% of recorded spending and totals ${largestCategory.Spent:N2} so far.",
+                Tone = largestCategory.UtilizationPercentage >= 75 ? "warning" : "info"
+            });
+        }
+
+        var overLimitCount = categoryBreakdowns.Count(item => item.BudgetLimit > 0 && item.Spent >= item.BudgetLimit);
+        if (overLimitCount > 0)
+        {
+            insights.Add(new SpendingInsight
+            {
+                Title = "Some category budgets are already over the limit",
+                Description = $"{overLimitCount} categor{(overLimitCount == 1 ? "y is" : "ies are")} above the configured monthly budget and should be reviewed.",
+                Tone = "warning"
+            });
+        }
+
+        var strongestGoal = goalProgressItems
+            .Where(item => item.TargetAmount > 0)
+            .OrderByDescending(item => item.ProgressPercentage)
+            .FirstOrDefault();
+
+        if (strongestGoal is not null)
+        {
+            insights.Add(new SpendingInsight
+            {
+                Title = $"{strongestGoal.GoalName} is the most advanced savings goal",
+                Description = $"Progress is at {strongestGoal.ProgressPercentage:N1}% with ${strongestGoal.RemainingAmount:N2} still needed to finish it.",
+                Tone = strongestGoal.ProgressPercentage >= 75 ? "success" : "info"
+            });
+        }
+
+        return insights.Take(4).ToList();
     }
 }

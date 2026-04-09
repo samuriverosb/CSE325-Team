@@ -3,15 +3,17 @@ namespace SelfRelianceFinanceTracker.Web.Models;
 public class MonthlyReport
 {
     public string PeriodLabel { get; init; } = string.Empty;
-    public decimal TotalIncome { get; init; }
-    public decimal TotalExpenses { get; init; }
-    public int TransactionCount { get; init; }
-
-    public decimal NetBalance => TotalIncome - TotalExpenses;
-
-    public IReadOnlyList<ReportCategoryBreakdown> CategoryBreakdown { get; init; } = [];
-    public IReadOnlyList<GoalProgressReportItem> GoalProgress { get; init; } = [];
+    public decimal MonthlyIncome { get; init; }
+    public decimal MonthlyExpenses { get; init; }
+    public IReadOnlyList<ReportCategoryBreakdown> CategoryBreakdowns { get; init; } = [];
+    public IReadOnlyList<GoalProgressReportItem> GoalProgressItems { get; init; } = [];
     public IReadOnlyList<Transaction> RecentTransactions { get; init; } = [];
-    public IReadOnlyList<SpendingInsight> Insights { get; init; } = [];
-    public IReadOnlyList<ReportChartPoint> CashFlowChart { get; init; } = [];
+    public IReadOnlyList<SpendingInsight> SpendingInsights { get; init; } = [];
+    public IReadOnlyList<ReportChartPoint> CashFlowPoints { get; init; } = [];
+    public IReadOnlyList<ReportChartPoint> CategorySharePoints { get; init; } = [];
+
+    public decimal NetBalance => MonthlyIncome - MonthlyExpenses;
+
+    public decimal ExpenseRatio =>
+        MonthlyIncome <= 0 ? 0 : Math.Round((MonthlyExpenses / MonthlyIncome) * 100m, 1);
 }

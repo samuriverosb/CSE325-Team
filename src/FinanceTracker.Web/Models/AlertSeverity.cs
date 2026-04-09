@@ -2,7 +2,7 @@ namespace SelfRelianceFinanceTracker.Web.Models;
 
 public enum AlertSeverity
 {
-    Info,
-    Warning,
-    Danger
+    Info = 0,
+    Medium = 1,
+    High = 2
 }

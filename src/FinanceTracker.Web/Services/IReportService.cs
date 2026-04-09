@@ -4,5 +4,5 @@ namespace SelfRelianceFinanceTracker.Web.Services;
 
 public interface IReportService
 {
-    Task<MonthlyReport> GetCurrentMonthReportAsync(string userId, CancellationToken cancellationToken = default);
+    Task<MonthlyReport> GetMonthlyReportAsync(string userId, CancellationToken cancellationToken = default);
 }

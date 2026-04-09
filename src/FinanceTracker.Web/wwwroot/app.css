@@ -59,46 +59,117 @@ h1:focus {
     text-align: start;
 }
 
-/* Reports keep charts CSS-only so the project stays lightweight and easy to deploy. */
-.report-insight-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.report-insight-card {
+/* Reporting styles keep the checkpoint charts readable without extra JS. */
+.spending-insight-card {
     height: 100%;
     padding: 1rem;
-    border: 1px solid rgba(27, 110, 194, 0.12);
-    border-radius: 1rem;
-    background:
-        linear-gradient(135deg, rgba(27, 110, 194, 0.08), rgba(255, 255, 255, 0.95)),
-        #fff;
+    border: 1px solid #d9e2ec;
+    border-left-width: 0.4rem;
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 
-.report-chart-stack {
+.spending-insight-success {
+    border-left-color: #198754;
+}
+
+.spending-insight-warning {
+    border-left-color: #fd7e14;
+}
+
+.spending-insight-info {
+    border-left-color: #0d6efd;
+}
+
+.report-column-chart {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(4.5rem, 1fr));
+    gap: 1rem;
+    align-items: end;
+    min-height: 16rem;
+}
+
+.report-column-item {
+    display: grid;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.report-column-track {
+    min-height: 11rem;
+    padding: 0.75rem;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #f7f9fc 0%, #e9eef5 100%);
+}
+
+.report-column-bar {
+    width: 100%;
+    max-width: 2.75rem;
+    min-height: 0.75rem;
+    border-radius: 0.85rem 0.85rem 0.25rem 0.25rem;
+}
+
+.report-column-bar-positive {
+    background: linear-gradient(180deg, #3dd598 0%, #198754 100%);
+}
+
+.report-column-bar-negative {
+    background: linear-gradient(180deg, #ff8a8a 0%, #dc3545 100%);
+}
+
+.report-horizontal-chart {
     display: grid;
     gap: 1rem;
 }
 
-.report-chart-row {
+.report-horizontal-row {
     display: grid;
-    gap: 0.25rem;
+    gap: 0.35rem;
 }
 
-.report-chart-track {
+.report-horizontal-track,
+.report-progress-track {
     width: 100%;
-    height: 0.85rem;
-    border-radius: 999px;
-    background: linear-gradient(90deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.14));
     overflow: hidden;
+    border-radius: 999px;
+    background: #e9eef5;
 }
 
-.report-chart-fill {
+.report-horizontal-track {
+    height: 0.95rem;
+}
+
+.report-horizontal-fill,
+.report-progress-fill {
     height: 100%;
     border-radius: inherit;
 }
 
-.report-chart-fill-category {
-    background: linear-gradient(90deg, #1b6ec2, #4aa3ff);
+.report-horizontal-fill {
+    background: linear-gradient(90deg, #7aa2ff 0%, #0d6efd 100%);
+}
+
+.report-progress-track {
+    height: 0.85rem;
+}
+
+.report-progress-fill-steady {
+    background: linear-gradient(90deg, #8dc7ff 0%, #0d6efd 100%);
+}
+
+.report-progress-fill-strong {
+    background: linear-gradient(90deg, #71e2b3 0%, #198754 100%);
+}
+
+@media (max-width: 768px) {
+    .report-column-chart {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .report-column-track {
+        min-height: 9rem;
+    }
 }

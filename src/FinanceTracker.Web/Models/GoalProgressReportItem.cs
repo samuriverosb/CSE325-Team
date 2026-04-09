@@ -7,14 +7,10 @@ public class GoalProgressReportItem
     public decimal TargetAmount { get; init; }
     public DateTime Deadline { get; init; }
 
+    public decimal RemainingAmount => Math.Max(0, TargetAmount - CurrentAmount);
+
     public decimal ProgressPercentage =>
-        TargetAmount <= 0 ? 0m : Math.Min(100m, (CurrentAmount / TargetAmount) * 100m);
+        TargetAmount <= 0 ? 0 : Math.Round((CurrentAmount / TargetAmount) * 100m, 1);
 
     public int DaysRemaining => (Deadline.Date - DateTime.Today).Days;
-
-    public string Status =>
-        CurrentAmount >= TargetAmount ? "Completed" :
-        DaysRemaining < 0 ? "Past due" :
-        DaysRemaining <= 14 ? "Due soon" :
-        "On track";
 }

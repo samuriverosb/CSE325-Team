@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SelfRelianceFinanceTracker.Web.Components;
 using SelfRelianceFinanceTracker.Web.Components.Account;
@@ -41,7 +42,7 @@ if (builder.Environment.IsDevelopment())
         .SetApplicationName("SelfRelianceFinanceTracker.Local");
 }
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+var connectionString = ResolveSqliteConnectionString(builder.Configuration, builder.Environment);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -91,6 +92,38 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();
+
+static string ResolveSqliteConnectionString(IConfiguration configuration, IWebHostEnvironment environment)
+{
+    var rawConnectionString = configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+    var connectionStringBuilder = new SqliteConnectionStringBuilder(rawConnectionString);
+    if (string.IsNullOrWhiteSpace(connectionStringBuilder.DataSource) || connectionStringBuilder.DataSource == ":memory:")
+    {
+        return rawConnectionString;
+    }
+
+    var dataSource = connectionStringBuilder.DataSource;
+    if (OperatingSystem.IsWindows() && dataSource.StartsWith("/tmp/", StringComparison.Ordinal))
+    {
+        dataSource = Path.Combine(Path.GetTempPath(), Path.GetFileName(dataSource));
+    }
+    else if (!Path.IsPathRooted(dataSource))
+    {
+        dataSource = Path.GetFullPath(Path.Combine(environment.ContentRootPath, dataSource));
+    }
+
+    // SQLite won't create missing directories for file-backed databases.
+    var databaseDirectory = Path.GetDirectoryName(dataSource);
+    if (!string.IsNullOrWhiteSpace(databaseDirectory))
+    {
+        Directory.CreateDirectory(databaseDirectory);
+    }
+
+    connectionStringBuilder.DataSource = dataSource;
+    return connectionStringBuilder.ToString();
+}
 
 static async Task EnsureDatabaseAndTestUserAsync(WebApplication app)
 {

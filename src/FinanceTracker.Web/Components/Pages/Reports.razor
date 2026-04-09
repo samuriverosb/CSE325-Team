@@ -1,0 +1,343 @@
+@page "/reports"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IReportService ReportService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Reports</PageTitle>
+
+<main class="container py-4">
+
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">Reports</h1>
+            <p class="text-muted mb-0">A readable monthly snapshot of spending, goals, and recent activity.</p>
+        </div>
+
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary" @onclick="@(() => NavigationManager.NavigateTo("/dashboard"))">
+                Back to Dashboard
+            </button>
+            <button type="button" class="btn btn-primary" @onclick="@(() => NavigationManager.NavigateTo("/alerts"))">
+                View Alerts
+            </button>
+        </div>
+    </div>
+
+    @if (report is null)
+    {
+        <p role="status">Loading reports...</p>
+    }
+    else
+    {
+        <div class="alert alert-secondary border-0 mb-4" role="status">
+            Report period: <strong>@report.PeriodLabel</strong>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Income</h2>
+                        <p class="h4 mb-0 text-success">$@report.TotalIncome.ToString("N2")</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Expenses</h2>
+                        <p class="h4 mb-0 text-danger">$@report.TotalExpenses.ToString("N2")</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Net Balance</h2>
+                        <p class="h4 mb-0 @(report.NetBalance >= 0 ? "text-success" : "text-danger")">
+                            $@report.NetBalance.ToString("N2")
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-xl-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Transactions</h2>
+                        <p class="h4 mb-0">@report.TransactionCount</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-xl-7">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 mb-0">Spending Insights</h2>
+                            <small class="text-muted">Readable takeaways</small>
+                        </div>
+
+                        <div class="report-insight-grid">
+                            @foreach (var insight in report.Insights)
+                            {
+                                <article class="report-insight-card">
+                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+                                        <h3 class="h6 mb-0">@insight.Title</h3>
+                                        <span class="badge @insight.ToneClass">@insight.Value</span>
+                                    </div>
+
+                                    <p class="text-muted mb-0">@insight.Summary</p>
+                                </article>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-5">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 mb-0">Cash Flow Chart</h2>
+                            <small class="text-muted">Scaled to this month</small>
+                        </div>
+
+                        <div class="report-chart-stack">
+                            @foreach (var point in report.CashFlowChart)
+                            {
+                                <div class="report-chart-row">
+                                    <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                                        <div>
+                                            <h3 class="h6 mb-0">@point.Label</h3>
+                                            <small class="text-muted">@point.Caption</small>
+                                        </div>
+
+                                        <strong>$@point.Amount.ToString("N2")</strong>
+                                    </div>
+
+                                    <div class="report-chart-track" aria-hidden="true">
+                                        <div class="report-chart-fill @point.FillClass" style="width: @(point.Percentage.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%")"></div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-xl-7">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 mb-0">Category Breakdown</h2>
+                            <small class="text-muted">Current month</small>
+                        </div>
+
+                        @if (report.CategoryBreakdown.Count == 0)
+                        {
+                            <p role="status" class="mb-0">No category data is available yet.</p>
+                        }
+                        else
+                        {
+                            <div class="report-chart-stack mb-4">
+                                @foreach (var category in report.CategoryBreakdown.Where(category => category.Spent > 0m).Take(5))
+                                {
+                                    <div class="report-chart-row">
+                                        <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                                            <div>
+                                                <h3 class="h6 mb-0">@category.CategoryName</h3>
+                                                <small class="text-muted">@category.Status</small>
+                                            </div>
+
+                                            <strong>@category.ExpenseSharePercentage.ToString("N0")%</strong>
+                                        </div>
+
+                                        <div class="report-chart-track" aria-hidden="true">
+                                            <div class="report-chart-fill report-chart-fill-category"
+                                                 style="width: @(category.ExpenseSharePercentage.ToString(System.Globalization.CultureInfo.InvariantCulture) + "%")"></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <caption class="visually-hidden">Monthly category spending and budget usage.</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Category</th>
+                                            <th scope="col">Share</th>
+                                            <th scope="col">Spent</th>
+                                            <th scope="col">Limit</th>
+                                            <th scope="col">Remaining</th>
+                                            <th scope="col">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var category in report.CategoryBreakdown)
+                                        {
+                                            <tr>
+                                                <td>@category.CategoryName</td>
+                                                <td>@category.ExpenseSharePercentage.ToString("N0")%</td>
+                                                <td>$@category.Spent.ToString("N2")</td>
+                                                <td>@(category.Limit > 0 ? $"${category.Limit:N2}" : "Not set")</td>
+                                                <td>$@category.Remaining.ToString("N2")</td>
+                                                <td>
+                                                    <span class="badge @GetBudgetBadgeClass(category.Status)">
+                                                        @category.Status
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-5">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 mb-0">Goal Progress</h2>
+                            <small class="text-muted">Live snapshot</small>
+                        </div>
+
+                        @if (report.GoalProgress.Count == 0)
+                        {
+                            <p role="status" class="mb-0">No savings goals have been created yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table align-middle mb-0">
+                                    <caption class="visually-hidden">Savings goal progress and upcoming deadlines.</caption>
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Goal</th>
+                                            <th scope="col">Progress</th>
+                                            <th scope="col">Deadline</th>
+                                            <th scope="col">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var goal in report.GoalProgress)
+                                        {
+                                            <tr>
+                                                <td>@goal.GoalName</td>
+                                                <td>$@goal.CurrentAmount.ToString("N2") / $@goal.TargetAmount.ToString("N2")</td>
+                                                <td>@goal.Deadline.ToString("yyyy-MM-dd")</td>
+                                                <td>
+                                                    <span class="badge @GetGoalBadgeClass(goal.Status)">
+                                                        @goal.Status
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 mb-0">Recent Transactions</h2>
+                    <small class="text-muted">Most recent 8 entries</small>
+                </div>
+
+                @if (report.RecentTransactions.Count == 0)
+                {
+                    <p role="status" class="mb-0">No recent transactions are available.</p>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <caption class="visually-hidden">Recent transactions included in the current month report.</caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Date</th>
+                                    <th scope="col">Category</th>
+                                    <th scope="col">Description</th>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var transaction in report.RecentTransactions)
+                                {
+                                    <tr>
+                                        <td>@transaction.Date.ToString("yyyy-MM-dd")</td>
+                                        <td>@transaction.Category?.Name</td>
+                                        <td>@(string.IsNullOrWhiteSpace(transaction.Description) ? "No description" : transaction.Description)</td>
+                                        <td>@transaction.Type</td>
+                                        <td class="@(transaction.Type == TransactionType.Income ? "text-success" : "text-danger")">
+                                            @(transaction.Type == TransactionType.Income ? "+" : "-")$@transaction.Amount.ToString("N2")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</main>
+
+@code {
+    private MonthlyReport? report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+
+        if (user is null)
+        {
+            return;
+        }
+
+        report = await ReportService.GetCurrentMonthReportAsync(user.Id);
+    }
+
+    private static string GetBudgetBadgeClass(string status) =>
+        status switch
+        {
+            "Over budget" => "text-bg-danger",
+            "Near limit" => "text-bg-warning",
+            _ => "text-bg-success"
+        };
+
+    private static string GetGoalBadgeClass(string status) =>
+        status switch
+        {
+            "Past due" => "text-bg-danger",
+            "Due soon" => "text-bg-warning",
+            "Completed" => "text-bg-success",
+            _ => "text-bg-info"
+        };
+}

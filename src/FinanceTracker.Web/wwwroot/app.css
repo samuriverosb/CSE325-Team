@@ -58,3 +58,47 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+/* Reports keep charts CSS-only so the project stays lightweight and easy to deploy. */
+.report-insight-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.report-insight-card {
+    height: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(27, 110, 194, 0.12);
+    border-radius: 1rem;
+    background:
+        linear-gradient(135deg, rgba(27, 110, 194, 0.08), rgba(255, 255, 255, 0.95)),
+        #fff;
+}
+
+.report-chart-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.report-chart-row {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.report-chart-track {
+    width: 100%;
+    height: 0.85rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.08), rgba(15, 23, 42, 0.14));
+    overflow: hidden;
+}
+
+.report-chart-fill {
+    height: 100%;
+    border-radius: inherit;
+}
+
+.report-chart-fill-category {
+    background: linear-gradient(90deg, #1b6ec2, #4aa3ff);
+}

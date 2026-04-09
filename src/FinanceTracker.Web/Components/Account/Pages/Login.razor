@@ -19,6 +19,8 @@
         <section>
             <StatusMessage Message="@errorMessage" />
             <EditForm EditContext="editContext" method="post" OnSubmit="LoginUser" FormName="login">
+                @* Explicit token keeps the static POST flow valid during local and deployed runs. *@
+                <AntiforgeryToken />
                 <DataAnnotationsValidator />
                 <h2>Use a local account to log in.</h2>
                 <hr />

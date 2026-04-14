@@ -22,9 +22,8 @@
 <div class="row">
     <div class="col-lg-6">
         <StatusMessage Message="@Message" />
-        <EditForm Model="Input" method="post" OnValidSubmit="RegisterUser" FormName="register">
+        <EditForm Model="Input" OnValidSubmit="RegisterUser" FormName="register">
             @* Explicit token keeps the static POST flow valid during local and deployed runs. *@
-            <AntiforgeryToken />
             <DataAnnotationsValidator />
             <h2>Create a new account.</h2>
             <hr />

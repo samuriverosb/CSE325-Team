@@ -3,8 +3,8 @@ obj/
 .vs/
 .vscode/
 .idea/
-W05_CANVAS_UPDATE_DRAFT.md
-CHANGE_REPORT_FOR_SAMUEL.md
+W06_CANVAS_UPDATE_DRAFT.md
+W06_VALIDATION_TEST_REPORT.md
 
 # Local .NET CLI home used in this repository
 .dotnet/

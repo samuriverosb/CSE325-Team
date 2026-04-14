@@ -1,5 +1,8 @@
+using System.IO;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using SelfRelianceFinanceTracker.Web.Components;
 using SelfRelianceFinanceTracker.Web.Components.Account;
@@ -23,7 +26,23 @@ builder.Services.AddAuthentication(options =>
     })
     .AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+if (builder.Environment.IsDevelopment())
+{
+    // Keep local logging on providers that work without elevated Windows permissions.
+    builder.Logging.ClearProviders();
+    builder.Logging.AddConsole();
+    builder.Logging.AddDebug();
+
+    // Keep development keys inside the project so local runs do not depend on a broken user-profile key ring.
+    var localKeysPath = Path.Combine(builder.Environment.ContentRootPath, "Data", "keys");
+    Directory.CreateDirectory(localKeysPath);
+
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(localKeysPath))
+        .SetApplicationName("SelfRelianceFinanceTracker.Local");
+}
+
+var connectionString = ResolveSqliteConnectionString(builder.Configuration, builder.Environment);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -42,6 +61,8 @@ builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<ISavingsGoalService, SavingsGoalService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IAlertService, AlertService>();
 
 var app = builder.Build();
 
@@ -61,6 +82,9 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseAntiforgery();
 
 app.MapStaticAssets();
@@ -71,6 +95,38 @@ app.MapRazorComponents<App>()
 app.MapAdditionalIdentityEndpoints();
 
 app.Run();
+
+static string ResolveSqliteConnectionString(IConfiguration configuration, IWebHostEnvironment environment)
+{
+    var rawConnectionString = configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+    var connectionStringBuilder = new SqliteConnectionStringBuilder(rawConnectionString);
+    if (string.IsNullOrWhiteSpace(connectionStringBuilder.DataSource) || connectionStringBuilder.DataSource == ":memory:")
+    {
+        return rawConnectionString;
+    }
+
+    var dataSource = connectionStringBuilder.DataSource;
+    if (OperatingSystem.IsWindows() && dataSource.StartsWith("/tmp/", StringComparison.Ordinal))
+    {
+        dataSource = Path.Combine(Path.GetTempPath(), Path.GetFileName(dataSource));
+    }
+    else if (!Path.IsPathRooted(dataSource))
+    {
+        dataSource = Path.GetFullPath(Path.Combine(environment.ContentRootPath, dataSource));
+    }
+
+    // SQLite won't create missing directories for file-backed databases.
+    var databaseDirectory = Path.GetDirectoryName(dataSource);
+    if (!string.IsNullOrWhiteSpace(databaseDirectory))
+    {
+        Directory.CreateDirectory(databaseDirectory);
+    }
+
+    connectionStringBuilder.DataSource = dataSource;
+    return connectionStringBuilder.ToString();
+}
 
 static async Task EnsureDatabaseAndTestUserAsync(WebApplication app)
 {

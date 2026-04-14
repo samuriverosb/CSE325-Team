@@ -1,17 +1,93 @@
 @page "/"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
 
 <PageTitle>Home</PageTitle>
 
-<h1>Finance Tracker</h1>
+<main class="container py-5">
 
-<p>This application helps users build financial independence by tracking budgets, transactions, and savings goals.</p>
+    <!-- HERO SECTION -->
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold">Finance Tracker</h1>
+        <p class="lead text-muted">
+            Take control of your money. Track your income, manage expenses, and reach your savings goals.
+        </p>
 
-<ul>
-    <li>Secure user authentication with ASP.NET Core Identity</li>
-    <li>Budget categories and monthly limits</li>
-    <li>Income and expense transaction tracking</li>
-    <li>Savings goals with progress tracking</li>
-    <li>Dashboard summary for monthly finances</li>
-</ul>
+        @if (!isAuthenticated)
+        {
+            <div class="d-flex justify-content-center gap-3 mt-4">
+                <button class="btn btn-primary btn-lg" @onclick="GoToLogin">
+                    Log In
+                </button>
 
-<p>Use the navigation menu to open the feature modules.</p>
+                <button class="btn btn-outline-primary btn-lg" @onclick="GoToRegister">
+                    Register
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="mt-4">
+                <button class="btn btn-success btn-lg" @onclick="GoToDashboard">
+                    Go to Dashboard
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- FEATURES -->
+    <div class="row g-4">
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Track Transactions</h5>
+                    <p class="card-text">
+                        Record your income and expenses to understand where your money goes.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Manage Budgets</h5>
+                    <p class="card-text">
+                        Set monthly limits per category and stay within your budget.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">Savings Goals</h5>
+                    <p class="card-text">
+                        Define goals and track your progress over time.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</main>
+
+@code {
+    private bool isAuthenticated;
+
+    void GoToLogin() => Nav.NavigateTo("/Account/Login", forceLoad: true);
+
+    void GoToRegister() => Nav.NavigateTo("/Account/Register", forceLoad: true);
+
+    void GoToDashboard() => Nav.NavigateTo("/dashboard", forceLoad: true);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+    }
+}

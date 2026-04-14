@@ -1,0 +1,115 @@
+@page "/alerts"
+@attribute [Authorize]
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using SelfRelianceFinanceTracker.Web.Data
+@using SelfRelianceFinanceTracker.Web.Models
+@using SelfRelianceFinanceTracker.Web.Services
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+@inject IAlertService AlertService
+
+<PageTitle>Alerts</PageTitle>
+
+<main class="container py-4">
+    <div class="mb-4">
+        <h1 class="h3 mb-1">Budget Alerts</h1>
+        <p class="text-muted mb-0">Notifications for budgets, savings goals, and transaction activity that may need attention.</p>
+    </div>
+
+    @if (isLoading)
+    {
+        <p role="status">Loading alerts...</p>
+    }
+    else
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">High Priority</h2>
+                        <p class="h4 mb-0 text-danger">@alerts.Count(item => item.Severity == AlertSeverity.High)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Needs Attention</h2>
+                        <p class="h4 mb-0 text-warning">@alerts.Count(item => item.Severity == AlertSeverity.Medium)</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h2 class="h6 text-muted">Informational</h2>
+                        <p class="h4 mb-0 text-primary">@alerts.Count(item => item.Severity == AlertSeverity.Info)</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (alerts.Count == 0)
+        {
+            <div class="alert alert-success mb-0" role="alert">
+                No alerts were generated. Current budgets and goals look healthy.
+            </div>
+        }
+        else
+        {
+            <div class="d-grid gap-3">
+                @foreach (var alert in alerts)
+                {
+                    <section class="alert @GetAlertClass(alert.Severity) mb-0" role="alert">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3">
+                            <div>
+                                <h2 class="h6 mb-1">@alert.Title</h2>
+                                <p class="mb-0">@alert.Message</p>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(alert.ActionHref) && !string.IsNullOrWhiteSpace(alert.ActionText))
+                            {
+                                <a class="btn btn-sm @GetButtonClass(alert.Severity)" href="@alert.ActionHref">@alert.ActionText</a>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+        }
+    }
+</main>
+
+@code {
+    private bool isLoading = true;
+    private IReadOnlyList<AlertNotification> alerts = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null)
+        {
+            isLoading = false;
+            return;
+        }
+
+        alerts = await AlertService.GetAlertsAsync(user.Id);
+        isLoading = false;
+    }
+
+    private static string GetAlertClass(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.High => "alert-danger",
+        AlertSeverity.Medium => "alert-warning",
+        _ => "alert-primary"
+    };
+
+    private static string GetButtonClass(AlertSeverity severity) => severity switch
+    {
+        AlertSeverity.High => "btn-outline-danger",
+        AlertSeverity.Medium => "btn-outline-warning",
+        _ => "btn-outline-primary"
+    };
+}

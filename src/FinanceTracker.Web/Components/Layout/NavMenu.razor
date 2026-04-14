@@ -4,7 +4,7 @@
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">Finance Tracker</a>
+        <a class="navbar-brand" href="/">Finance Tracker</a>
     </div>
 </div>
 
@@ -18,9 +18,21 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
+        @* <div class="nav-item px-3">
             <NavLink class="nav-link" href="dashboard">
                 <span class="bi bi-grid-1x2-fill-nav-menu" aria-hidden="true"></span> Dashboard
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="reports">
+                <span class="bi bi-bar-chart-line-fill-nav-menu" aria-hidden="true"></span> Reports
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="alerts">
+                <span class="bi bi-bell-fill-nav-menu" aria-hidden="true"></span> Alerts
             </NavLink>
         </div>
 
@@ -40,17 +52,65 @@
             <NavLink class="nav-link" href="savings-goals">
                 <span class="bi bi-piggy-bank-nav-menu" aria-hidden="true"></span> Savings Goals
             </NavLink>
-        </div>
+        </div> *@
+
+        <AuthorizeView>
+            <Authorized>
+                <hr />
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView>
+            <Authorized>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="dashboard">
+                        <span class="bi bi-grid-1x2-fill-nav-menu"></span> Dashboard
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="reports">
+                        <span class="bi bi-bar-chart-line-fill-nav-menu"></span> Reports
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="alerts">
+                        <span class="bi bi-bell-fill-nav-menu"></span> Alerts
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="categories">
+                        <span class="bi bi-tags-fill-nav-menu"></span> Categories
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="transactions">
+                        <span class="bi bi-receipt-nav-menu"></span> Transactions
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="savings-goals">
+                        <span class="bi bi-piggy-bank-nav-menu"></span> Savings Goals
+                    </NavLink>
+                </div>
+
+            </Authorized>
+        </AuthorizeView>
 
         <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="Account/Manage">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name
+                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> @context.User.Identity?.Name?.Split('@')[0]
                     </NavLink>
                 </div>
                 <div class="nav-item px-3">
-                    <form action="Account/Logout" method="post">
+                    <form action="Account/Logout" method="post" @formname="logout">
                         <AntiforgeryToken />
                         <input type="hidden" name="ReturnUrl" value="@currentUrl" />
                         <button type="submit" class="nav-link">
